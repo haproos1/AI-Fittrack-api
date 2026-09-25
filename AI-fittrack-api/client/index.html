@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>FitTrack AI Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white font-sans min-h-screen p-6">
+<div class="max-w-4xl mx-auto space-y-6">
+
+<header class="border-b border-gray-800 pb-4 flex justify-between items-center">
+<h1 class="text-3xl font-bold text-emerald-400">FitTrack AI</h1>
+<div class="flex gap-3">
+<button onclick="login()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded font-semibold">Login</button>
+<button onclick="logout()" class="px-4 py-2 bg-red-600 hover:bg-red-500 rounded font-semibold">Logout</button>
+</div>
+</header>
+
+<div class="bg-gray-800 p-6 rounded-lg space-y-4">
+<h2 class="text-xl font-semibold text-emerald-300">1. Authentication</h2>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+<input id="email" type="email" placeholder="Email" class="p-2 rounded bg-gray-700 border border-gray-600">
+<input id="password" type="password" placeholder="Password" class="p-2 rounded bg-gray-700 border border-gray-600">
+<input id="name" type="text" placeholder="Name (For Register)" class="p-2 rounded bg-gray-700 border border-gray-600">
+</div>
+<div class="flex gap-3">
+<button onclick="login()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded font-semibold">Login</button>
+<button onclick="register()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded font-semibold">Register</button>
+</div>
+</div>
+<div class="bg-gray-800 p-6 rounded-lg space-y-4">
+<h2 class="text-xl font-semibold text-emerald-300">2. Log Workout</h2>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+<input id="wName" type="text" placeholder="Workout Name" class="p-2 rounded bg-gray-700 border border-gray-600">
+<select id="wCategory" class="p-2 rounded bg-gray-700 border border-gray-600">
+<option value="Cardio">Cardio</option>
+<option value="Strength Training">Strength Training</option>
+<option value="Yoga">Yoga</option>
+<option value="Running">Running</option>
+<option value="Cycling">Cycling</option>
+<option value="Walking">Walking</option>
+</select>
+<input id="wDuration" type="number" placeholder="Duration (mins)" class="p-2 rounded bg-gray-700 border border-gray-600">
+<input id="wCalories" type="number" placeholder="Calories Burned" class="p-2 rounded bg-gray-700 border border-gray-600">
+</div>
+<div class="flex gap-3">
+<button onclick="addWorkout()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded font-semibold">Add Workout</button>
+<button onclick="getWorkouts()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded font-semibold">Fetch Workouts</button>
+</div>
+<div id="workoutList" class="space-y-2"></div>
+</div>
+<div class="bg-gray-800 p-6 rounded-lg space-y-4">
+<h2 class="text-xl font-semibold text-emerald-300">3. AI Recommendations (Gemini)</h2>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+<input id="aiAge" type="number" placeholder="Age" class="p-2 rounded bg-gray-700 border border-gray-600">
+<input id="aiGoal" type="text" placeholder="Goal" class="p-2 rounded bg-gray-700 border border-gray-600">
+<input id="aiExp" type="text" placeholder="Experience" class="p-2 rounded bg-gray-700 border border-gray-600">
+</div>
+<button onclick="getAIRecommendation()" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded font-semibold">Get Plan</button>
+<div id="aiOutput" class="p-4 bg-gray-900 rounded border border-gray-700 whitespace-pre-wrap text-sm text-gray-300">AI outputs will appear here...</div>
+</div></div>
+<script>
+let token=localStorage.getItem("token")||"";
+const API_URL="http://localhost:5000/api";
+
+async function register(){
+try{
+const name=document.getElementById("name").value;
+const email=document.getElementById("email").value;
+const password=document.getElementById("password").value;
+if(!name||!email||!password)return alert("Enter name, email and password");
+const res=await fetch(`${API_URL}/auth/register`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,email,password})});
+const data=await res.json();
+console.log("REGISTER:",data);
+if(data.token){
+token=data.token;
+localStorage.setItem("token",token);
+alert("Registration successful!");
+}else{
+alert(data.message||data.error||"Registration failed");
+}
+}catch(error){
+console.error(error);
+alert("Server connection error");
+}
+}
+
+async function login(){
+try{
+const email=document.getElementById("email").value;
+const password=document.getElementById("password").value;
+if(!email||!password)return alert("Enter email and password");
+const res=await fetch(`${API_URL}/auth/login`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
+const data=await res.json();
+console.log("LOGIN:",data);
+if(data.token){
+token=data.token;
+localStorage.setItem("token",token);
+alert("Login successful!");
+getWorkouts();
+}else{
+alert(data.message||data.error||"Login failed");
+}
+}catch(error){
+console.error(error);
+alert("Server connection error");
+}
+}
+
+function logout(){
+token="";
+localStorage.removeItem("token");
+document.getElementById("workoutList").innerHTML="";
+alert("Logged out successfully!");
+}
+
+async function addWorkout(){
+if(!token)return alert("Please login first");
+try{
+const workoutName=document.getElementById("wName").value;
+const category=document.getElementById("wCategory").value;
+const duration=document.getElementById("wDuration").value;
+const caloriesBurned=document.getElementById("wCalories").value;
+if(!workoutName||!duration||!caloriesBurned)return alert("Enter all workout details");
+const res=await fetch(`${API_URL}/workouts`,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`},body:JSON.stringify({workoutName,category,duration,caloriesBurned})});
+const data=await res.json();
+console.log("ADD WORKOUT:",data);
+if(data.success){
+alert("Workout Added!");
+getWorkouts();
+}else{
+alert(data.message||data.error||"Failed to add workout");
+}
+}catch(error){
+console.error(error);
+alert("Server connection error");
+}
+}
+
+async function getWorkouts(){
+if(!token)return alert("Please login first");
+try{
+const res=await fetch(`${API_URL}/workouts`,{headers:{"Authorization":`Bearer ${token}`}});
+const data=await res.json();
+console.log("WORKOUTS:",data);
+const list=document.getElementById("workoutList");
+list.innerHTML="";
+if(data.data&&data.data.length){
+data.data.forEach(w=>{
+list.innerHTML+=`<div class="p-3 bg-gray-700 rounded"><strong>${w.workoutName}</strong> (${w.category}) - ${w.duration}m | ${w.caloriesBurned} kcal</div>`;
+});
+}else{
+list.innerHTML='<div class="text-gray-400">No workouts found.</div>';
+}
+}catch(error){
+console.error(error);
+alert("Server connection error");
+}
+}
+
+async function getAIRecommendation(){
+if(!token)return alert("Please login first");
+try{
+const age=document.getElementById("aiAge").value;
+const fitnessGoal=document.getElementById("aiGoal").value;
+const experience=document.getElementById("aiExp").value;
+document.getElementById("aiOutput").innerText="Loading AI response...";
+const res=await fetch(`${API_URL}/ai/workout-recommendation`,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`},body:JSON.stringify({age,fitnessGoal,experience})});
+const data=await res.json();
+console.log("AI:",data);
+document.getElementById("aiOutput").innerText=data.recommendation||data.message||data.error||"No recommendation received";
+}catch(error){
+console.error(error);
+document.getElementById("aiOutput").innerText="Server connection error";
+}
+}
+</script>
+</body>
+</html>
+
